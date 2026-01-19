@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # CS 224N Default Final Project: Build GPT-2
 
 This is the default final project for the Stanford CS 224N class. Please refer to the project handout on the course
@@ -50,3 +51,7 @@ project [Implement BERT](https://web.stanford.edu/class/archive/cs/cs224n/cs224n
 
 Parts of the code are from the [`transformers`](https://github.com/huggingface/transformers)
 library ([Apache License 2.0](./LICENSE)).
+=======
+# cs224n-gpt
+>>>>>>> dd7ed286acb585fc3dc12812f6866efee46a892d
+"# My CS224N GPT Project" 
