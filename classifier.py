@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import csv
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from transformers import GPT2Tokenizer
@@ -55,7 +56,8 @@ class GPT2SentimentClassifier(torch.nn.Module):
 
     ### TODO: Create any instance variables you need to classify the sentiment of BERT embeddings.
     ### YOUR CODE HERE
-    raise NotImplementedError
+    hidden_size = self.gpt.config.hidden_size
+    self.classifier = nn.Linear(hidden_size, self.num_labels)
 
 
   def forward(self, input_ids, attention_mask):
@@ -65,7 +67,26 @@ class GPT2SentimentClassifier(torch.nn.Module):
     ###       HINT: You should consider what is an appropriate return value given that
     ###       the training loop currently uses F.cross_entropy as the loss function.
     ### YOUR CODE HERE
-    raise NotImplementedError
+    
+    outputs = self.gpt(
+            input_ids = input_ids,
+            attention_mask = attention_mask
+        )
+
+    hidden_states = outputs["last_hidden_state"]
+    
+    lengths = attention_mask.sum(dim = 1) - 1
+    batch_size = input_ids.size(0)
+
+
+    final_hidden = hidden_states[
+        torch.arange(batch_size),
+        lengths
+    ]  
+
+    logits = self.classifier(final_hidden)
+
+    return logits
 
 
 
@@ -149,13 +170,13 @@ def load_data(filename, flag='train'):
   num_labels = {}
   data = []
   if flag == 'test':
-    with open(filename, 'r') as fp:
+    with open(filename, 'r', encoding = 'utf-8') as fp:
       for record in csv.DictReader(fp, delimiter='\t'):
         sent = record['sentence'].lower().strip()
         sent_id = record['id'].lower().strip()
         data.append((sent, sent_id))
   else:
-    with open(filename, 'r') as fp:
+    with open(filename, 'r', encoding = 'utf-8') as fp:
       for record in csv.DictReader(fp, delimiter='\t'):
         sent = record['sentence'].lower().strip()
         sent_id = record['id'].lower().strip()
@@ -331,13 +352,13 @@ def test(args):
     test_pred, test_sents, test_sent_ids = model_test_eval(test_dataloader, model, device)
     print('DONE Test')
 
-    with open(args.dev_out, "w+") as f:
+    with open(args.dev_out, "w+", encoding = 'utf-8') as f:
       print(f"dev acc :: {dev_acc :.3f}")
       f.write(f"id \t Predicted_Sentiment \n")
       for p, s in zip(dev_sent_ids, dev_pred):
         f.write(f"{p}, {s} \n")
 
-    with open(args.test_out, "w+") as f:
+    with open(args.test_out, "w+", encoding = 'utf-8') as f:
       f.write(f"id \t Predicted_Sentiment \n")
       for p, s in zip(test_sent_ids, test_pred):
         f.write(f"{p}, {s} \n")
@@ -365,6 +386,7 @@ if __name__ == "__main__":
   args = get_args()
   seed_everything(args.seed)
 
+  '''
   print('Training Sentiment Classifier on SST...')
   config = SimpleNamespace(
     filepath='sst-classifier.pt',
@@ -385,6 +407,7 @@ if __name__ == "__main__":
 
   print('Evaluating on SST...')
   test(config)
+  '''
 
   print('Training Sentiment Classifier on cfimdb...')
   config = SimpleNamespace(
@@ -392,7 +415,7 @@ if __name__ == "__main__":
     lr=args.lr,
     use_gpu=args.use_gpu,
     epochs=args.epochs,
-    batch_size=8,
+    batch_size=args.batch_size,
     hidden_dropout_prob=args.hidden_dropout_prob,
     train='data/ids-cfimdb-train.csv',
     dev='data/ids-cfimdb-dev.csv',
