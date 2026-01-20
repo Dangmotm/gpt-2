@@ -72,7 +72,11 @@ class ParaphraseGPT(nn.Module):
 
     'Takes a batch of sentences and produces embeddings for them.'
     ### YOUR CODE HERE
-    raise NotImplementedError
+    output = self.gpt(input_ids, attention_mask)
+    last_token_hidden = output['last_token']
+    logits = self.paraphrase_detection_head(last_token_hidden)
+    
+    return logits
 
 
 
@@ -226,10 +230,19 @@ def add_arguments(args):
     raise Exception(f'{args.model_size} is not supported.')
   return args
 
-
+'''
 if __name__ == "__main__":
   args = get_args()
   args.filepath = f'{args.epochs}-{args.lr}-paraphrase.pt'  # Save path.
   seed_everything(args.seed)  # Fix the seed for reproducibility.
   train(args)
   test(args)
+'''
+if __name__ == "__main__":
+  args = get_args()
+  args.filepath = "10-1e-05-paraphrase.pt"
+  seed_everything(args.seed)
+
+  # train(args)   
+  test(args)      
+

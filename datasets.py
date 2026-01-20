@@ -40,9 +40,9 @@ class ParaphraseDetectionDataset(Dataset):
   def collate_fn(self, all_data):
     sent1 = [x[0] for x in all_data]
     sent2 = [x[1] for x in all_data]
-    # labels = torch.LongTensor([x[2] for x in all_data])
-    labels = ['yes' if label == 1 else 'no' for label in [x[2] for x in all_data]]
-    labels = self.tokenizer(labels, return_tensors='pt', padding=True, truncation=True)['input_ids']
+    labels = torch.LongTensor([x[2] for x in all_data])
+    # labels = ['yes' if label == 1 else 'no' for label in [x[2] for x in all_data]]
+    # labels = self.tokenizer(labels, return_tensors='pt', padding=True, truncation=True)['input_ids']
     sent_ids = [x[3] for x in all_data]
 
     cloze_style_sents = [f'Question 1: "{s1}"\nQuestion 2: "{s2}\nAre these questions asking the same thing?\n' for
@@ -100,7 +100,7 @@ class ParaphraseDetectionTestDataset(Dataset):
 def load_paraphrase_data(paraphrase_filename, split='train'):
   paraphrase_data = []
   if split == 'test':
-    with open(paraphrase_filename, 'r') as fp:
+    with open(paraphrase_filename, 'r', encoding = 'utf-8') as fp:
       for record in csv.DictReader(fp, delimiter='\t'):
         sent_id = record['id'].lower().strip()
         paraphrase_data.append((preprocess_string(record['sentence1']),
@@ -108,7 +108,7 @@ def load_paraphrase_data(paraphrase_filename, split='train'):
                                 sent_id))
 
   else:
-    with open(paraphrase_filename, 'r') as fp:
+    with open(paraphrase_filename, 'r', encoding = 'utf-8') as fp:
       for record in csv.DictReader(fp, delimiter='\t'):
         try:
           sent_id = record['id'].lower().strip()
@@ -131,7 +131,7 @@ class SonnetsDataset(Dataset):
 
   def _load_sonnets(self, file_path):
     """Reads the file and extracts individual sonnets."""
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, 'r', encoding = 'utf-8') as f:
       text = f.read()
 
     # Split sonnets based on numbering pattern (e.g., "\n\n1\n\n")

@@ -40,6 +40,82 @@ def seed_everything(seed=11711):
   torch.backends.cudnn.benchmark = False
   torch.backends.cudnn.deterministic = True
 
+class LoRALinear(nn.Module):
+    """
+    LoRA: Low-Rank Adaptation of Large Language Models
+    Paper: https://arxiv.org/abs/2106.09685
+    
+    Instead of fine-tuning full weight matrix W (d×d):
+      W' = W + ΔW
+    
+    We approximate ΔW with low-rank decomposition:
+      ΔW = B @ A  where B: (d×r), A: (r×d), r << d
+      
+    This reduces trainable params from d² to 2·d·r
+    Example: 768² = 589,824 → 2·768·8 = 12,288 (98% reduction!)
+    """
+    def __init__(self, original_layer, rank=8, alpha=16, dropout=0.1):
+        super().__init__()
+        self.original_layer = original_layer
+        self.rank = rank
+        self.alpha = alpha
+        
+        in_features = original_layer.in_features
+        out_features = original_layer.out_features
+        
+        # Freeze original weights
+        for param in self.original_layer.parameters():
+            param.requires_grad = False
+        
+        # LoRA low-rank matrices
+        self.lora_A = nn.Parameter(torch.zeros(in_features, rank))
+        self.lora_B = nn.Parameter(torch.zeros(rank, out_features))
+        
+        # Scaling factor
+        self.scaling = alpha / rank
+        
+        # Dropout for regularization
+        self.dropout = nn.Dropout(dropout)
+        
+        # Initialize A with Kaiming, B with zeros
+        nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
+        nn.init.zeros_(self.lora_B)
+    
+    def forward(self, x):
+        # Original projection
+        result = self.original_layer(x)
+        
+        # LoRA adaptation: x @ A @ B
+        # x: [..., in_features]
+        # A: [in_features, rank]
+        # B: [rank, out_features]
+        lora_out = self.dropout(x) @ self.lora_A @ self.lora_B
+        
+        # Combine with scaling
+        return result + lora_out * self.scaling
+
+
+def apply_lora_to_model(model, rank=8, alpha=16, target_modules=['query', 'value']):
+    """
+    Apply LoRA to specific modules in GPT-2.
+    
+    Typically target:
+    - Query and Value projections (most important)
+    - Can also target: Key, attention_dense, interm_dense, out_dense
+    """
+    for name, module in model.named_modules():
+        if any(target in name for target in target_modules):
+            if isinstance(module, nn.Linear):
+                # Get parent module and attribute name
+                parent_name = '.'.join(name.split('.')[:-1])
+                attr_name = name.split('.')[-1]
+                parent = model.get_submodule(parent_name) if parent_name else model
+                
+                # Replace with LoRA version
+                lora_layer = LoRALinear(module, rank=rank, alpha=alpha)
+                setattr(parent, attr_name, lora_layer)
+    
+    return model
 
 class SonnetGPT(nn.Module):
   """Your GPT-2 Model designed for paraphrase detection."""
@@ -61,7 +137,11 @@ class SonnetGPT(nn.Module):
     not just the distribution over next tokens for the last token!
     """
     ### YOUR CODE HERE
-    raise NotImplementedError
+    outputs = self.gpt(input_ids, attention_mask)
+    hidden_states = outputs['last_hidden_state']
+    logits = self.gpt.hidden_state_to_token(hidden_states)
+
+    return logits
 
 
   def get_device(self):
@@ -209,7 +289,7 @@ def generate_submission_sonnets(args):
 
     print(f'{decoded_output}\n\n')
 
-  with open(args.sonnet_out, "w+") as f:
+  with open(args.sonnet_out, "w+", encoding = 'utf-8') as f:
     f.write(f"--Generated Sonnets-- \n\n")
     for sonnet in generated_sonnets:
       f.write(f"\n{sonnet[0]}\n")
